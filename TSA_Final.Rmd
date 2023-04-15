@@ -35,6 +35,8 @@ getwd()
 ```{r, import data}
 library(readxl)
 hourlyprice.raw <- read.csv("./Data/Day-Ahead_Zonal_NYC_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
+hourlyload.raw <- read.csv("./Data/NYC Load_Forecast_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
+
 
 ```
 
