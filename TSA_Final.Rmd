@@ -41,6 +41,7 @@ NGprice.raw <- read.csv("./Data/Henry_Hub_Natural_Gas_Spot_Price.csv",stringsAsF
 REgeneration.raw <- read.csv("./Data/Monthly Renewable Generation_2018-2022.csv",stringsAsFactors = FALSE) # RE generation from January 2018 to December 2022
 ```
 
+
 ##Data Wrangling - hourly to daily
 ```{r}
 class(hourlyprice.raw$Date)
@@ -211,6 +212,26 @@ cat("The best model by RMSE is:", row.names(scores[best_model_index,]))
 
 ```
 
+
+```{r}
+kbl(scores, 
+      caption = "Forecast Accuracy for Electricity Price",
+      digits = array(5,ncol(scores))) %>%
+  kable_styling(full_width = FALSE, position = "center", latex_options = "hold_position") %>%
+  #highlight model with lowest RMSE
+  kable_styling(latex_options="striped", stripe_index = which.min(scores[,"RMSE"]))
+```
+
+```{r}
+autoplot(dailyprice.ts) +
+  autolayer(ETS, PI=FALSE, series="STL+ETS") +
+  autolayer(ARIMA, PI=FALSE, series="ARIMA + Fourier") +
+  autolayer(TBATS,PI=FALSE, series="TBATS") +
+  autolayer(NNet,PI=FALSE, series="NN") +
+  xlab("Day") + ylab("Electricity Price") +
+  guides(colour=guide_legend(title="Forecast"))
+```
+
 ## Predicting the future
 
 ```{r}
@@ -220,3 +241,4 @@ autoplot(dailyprice.ts, color = "dark grey") +
   autolayer(ETS_fit_2023$mean, series="STL + ETS",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ```
+
