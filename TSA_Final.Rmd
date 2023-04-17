@@ -143,8 +143,6 @@ Monthlyload <- dailyload %>%
 REgeneration.monthly <- REgeneration.raw %>% 
   select(Month, Total) %>%
   rename(Date = Month, REgeneration_all = Total)
-  
-class(REgeneration.monthly$Date)
 
 ```
 
