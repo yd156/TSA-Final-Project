@@ -7,10 +7,6 @@ editor_options:
   chunk_output_type: inline
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-``` 
-
 ```{r, package, message=FALSE, warning=FALSE}
 #Load/install required package here
 library(lubridate)
@@ -23,7 +19,6 @@ library(tidyverse)
 library(smooth)
 library(kableExtra)
 library(dplyr)
-library(kableExtra)
 ```
 
 ##Checking working directory
@@ -38,7 +33,10 @@ library(readxl)
 hourlyprice.raw <- read.csv("./Data/Day-Ahead_Zonal_NYC_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
 hourlyload.raw <- read.csv("./Data/NYC Load_Forecast_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
 NGprice.raw <- read.csv("./Data/Henry_Hub_Natural_Gas_Spot_Price.csv",stringsAsFactors = FALSE) # Daily NG Price from January 2018 to December 2022
-REgeneration.raw <- read.csv("./Data/Monthly Renewable Generation_2018-2022.csv",stringsAsFactors = FALSE) # RE generation from January 2018 to December 2022
+REgeneration.raw <- read.csv("./Data/Monthly Renewable Generation_2018-2022.csv",stringsAsFactors = FALSE) # RE generation from January 2008 to December 2022
+
+head(hourlyprice.raw, 10)
+head(hourlyload.raw, 10)
 ```
 
 ##Data Wrangling - hourly to daily
@@ -66,44 +64,13 @@ dailyprice$date <- as.Date(dailyprice$date,format = "%m/%d/%Y")
 ggplot(dailyprice, aes(x=date,y=daily_mean_price)) +
   geom_line() +
   ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
-```
 
-##Data Wrangling - create ts object
-```{r}
 dailyprice.ts <- msts(dailyprice$daily_mean_price,
                       seasonal.periods = c(7,365.25),
                       start = c(2018,1,1)) 
 
 autoplot(dailyprice.ts)
-```
 
-
-## Decomposing time series objects
-```{r}
-dailyprice.ts %>% mstl() %>% autoplot()
-```
-
-## Seperating into train and test subsets
-```{r}
-dailyprice.train.ts <- subset(dailyprice.ts,
-                                   end = length(dailyprice.ts)-365) #Jan 1st 2018 to Dec 31st 2021
-dailyprice.test.ts <- subset(dailyprice.ts,
-                                   start = length(dailyprice.ts)-365) # Jan 1st 2022 to Dec 31st 2022
-autoplot (dailyprice.train.ts)
-autoplot (dailyprice.test.ts)
-```
-
-## Exponential Smoothing State Space Model
-```{r, ETS Model}
-ETS_fit <-  stlf(dailyprice.train.ts, h=365)
-
-autoplot(dailyprice.ts, color = "dark grey") +
-  autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
-  ylab("Electricity Price")
-```
-
-## Data Wrangling - Ex-data
-```{r}
 hourlyload.raw <- hourlyload.raw %>%
   separate(Eastern.Date.Hour  , into = c("date", "time"), sep = " ") %>%
   separate(time, into = c("hour", "minute"), sep = ":")
@@ -111,7 +78,7 @@ hourlyload.raw <- hourlyload.raw %>%
 hourlyload <- hourlyload.raw %>%
   select(date,hour,DAM.Forecast.Load) %>%
   rename(Demand = DAM.Forecast.Load)
-
+  
   
 dailyload <- hourlyload %>%
   filter(!is.na(hourlyload$Demand)) %>% 
@@ -127,18 +94,117 @@ ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
   geom_line() +
   ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
 
+```
+
+## NG fix missing dates
+```{r}
+NGprice.raw$Day <-as.Date(NGprice.raw$Day,format = "%m/%d/%Y")
+# Create a sequence of dates from the minimum to maximum date in the dataset
+date_seq <- data.frame(Day = seq(min(NGprice.raw$Day), max(NGprice.raw$Day), by = "day"))
+
+library(dplyr)
+# Merge the sequence of dates with the original dataset using a left join
+complete_data <- left_join(date_seq, NGprice.raw, by = "Day")
+
+# Create a zoo object from the 'value' column of the complete dataset
+zoo_data <- zoo(complete_data$Natural.Gas.Spot.Price.Dollars.per.Million.Btu)
+
+# Fill the missing values with the average of the previous day and the next day
+zoo_data_filled <- na.approx(zoo_data)
+
+# Convert the filled zoo object back to a data frame
+NGprice.fixed <- data.frame(Date = complete_data$Day, value = coredata(zoo_data_filled))
+```
+
+##Data Wrangling - daily to monthly
+```{r}
+NGprice.daily <- NGprice.fixed %>%
+  rename(Price = value)
+NGprice.daily$Date <-as.Date(NGprice.daily$Date,format = "%m/%d/%Y")
+
+
+# Group the data by month and calculate the average price for each month
+NGprice.monthly <- NGprice.daily %>%
+  mutate(month = format(Date, "%Y-%m")) %>%
+  group_by(month) %>%
+  summarise(avg_price = mean(Price))
+write.csv(NGprice.monthly, "NGprice.monthly.csv", row.names = FALSE)
+
+Monthlyprice <- dailyprice %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month) %>%
+  summarise(monthly_price = mean(daily_mean_price))
+
+Monthlyload <- dailyload %>%
+  mutate(month = format(date, "%Y-%m")) %>%
+  group_by(month) %>%
+  summarise(monthly_load = mean(daily_mean_load))
+
+REgeneration.monthly <- REgeneration.raw %>% 
+  select(Month, Total) %>%
+  rename(Date = Month, REgeneration_all = Total)
+  
+class(REgeneration.monthly$Date)
+
+```
+
+##Correlation Test
+```{r}
+correlation.df <- data.frame(Monthlyprice$monthly_price,REgeneration.monthly$REgeneration_all, NGprice.monthly$avg_price,Monthlyload$monthly_load)
+
+correlation.df <- correlation.df %>%
+  rename(Eprice=Monthlyprice.monthly_price,NGprice=NGprice.monthly.avg_price,REgeneration=REgeneration.monthly.REgeneration_all,Eload=Monthlyload.monthly_load)
+
+correlation.model <- lm(data = correlation.df, Eprice~NGprice+REgeneration+Eload)
+summary(correlation.model)
+cor_matrix <- cor(correlation.df)
+cor_matrix
+
+cor_table <- data.frame(cor_matrix)
+cor_table %>%
+  kable("html", align = "c", caption = "Correlation Coefficient Matrix") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+  column_spec(1, border_right = TRUE)
+```
+
+## Seperating into train and test subsets
+```{r}
+dailyprice.train.ts <- subset(dailyprice.ts,
+                                   end = length(dailyprice.ts)-365) #Jan 1st 2018 to Dec 31st 2021
+dailyprice.test.ts <- subset(dailyprice.ts,
+                                   start = length(dailyprice.ts)-365) # Jan 1st 2022 to Dec 31st 2022
+autoplot (dailyprice.train.ts)
+autoplot (dailyprice.test.ts)
+
+
 dailyload.ts <- msts(dailyload$daily_mean_load,
                       seasonal.periods = c(7,365.25),
                       start = c(2018,1,1)) 
-
-dailyload.ts %>% mstl() %>% autoplot()
-```
-
-```{r}
 #subsetting
 dailyload.train.ts <- subset(dailyload.ts,
                                    end = length(dailyload.ts)-365) #Jan 1st 2018 to Dec 31st 202
 ```
+```
+
+## Decomposing time series objects
+```{r}
+dailyprice.ts %>% mstl() %>% autoplot()
+
+```
+
+```
+
+## Exponential Smoothing State Space Model
+```{r, ETS Model}
+ETS_fit <-  stlf(dailyprice.train.ts, h=365)
+
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
+  ylab("Electricity Price")
+```
+
+
+
 
 ## ARIMA with dynamic harmonic fourier components
 ```{r, ARIMA with dynamic harmonic fourier components}
