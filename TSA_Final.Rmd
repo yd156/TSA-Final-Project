@@ -4,12 +4,13 @@ author: "Yinan Ding, Jinxi Liu, Zhengqi Jiao"
 date: "2023-04-11"
 output: pdf_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-``` Zhengqi
+``` 
+
 ```{r, package, message=FALSE, warning=FALSE}
 #Load/install required package here
 library(lubridate)
@@ -60,79 +61,139 @@ dailyprice <- hourlyprice %>%
   summarise( daily_mean_price = mean(Price))
 
 class(dailyprice$date)
-dailyprice$date <- as.Date.character(dailyprice$date,format = "%m/%d/l")
+dailyprice$date <- as.Date(dailyprice$date,format = "%m/%d/%Y")
             
 ggplot(dailyprice, aes(x=date,y=daily_mean_price)) +
   geom_line() +
   ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
-
 ```
 
 ##Data Wrangling - create ts object
 ```{r}
 dailyprice.ts <- msts(dailyprice$daily_mean_price,
                       seasonal.periods = c(7,365.25),
-                      start = c(2018,1,1),
-                      end = c(2022,12,31)) 
-
-dailyprice.train.ts <- subset(dailyprice.ts,
-                                   end = length(dailyprice.ts)-365) #Jan 1st 2018 to Dec 31st 2021
-dailyprice.test.ts <- subset(dailyprice.ts,
-                                   start = length(dailyprice.ts)-365) # Jan 1st 2021 to Dec 31st 2022
+                      start = c(2018,1,1)) 
 
 autoplot(dailyprice.ts)
-autoplot (dailyprice.train.ts)
-autoplot (dailyprice.test.ts)
 ```
 
 
 ## Decomposing time series objects
 ```{r}
-decompose.dailyprice.train.ts <- mstl(dailyprice.train.ts)
-autoplot(decompose.dailyprice.train.ts)
+dailyprice.ts %>% mstl() %>% autoplot()
 ```
 
+## Seperating into train and test subsets
+```{r}
+dailyprice.train.ts <- subset(dailyprice.ts,
+                                   end = length(dailyprice.ts)-365) #Jan 1st 2018 to Dec 31st 2021
+dailyprice.test.ts <- subset(dailyprice.ts,
+                                   start = length(dailyprice.ts)-365) # Jan 1st 2022 to Dec 31st 2022
+autoplot (dailyprice.train.ts)
+autoplot (dailyprice.test.ts)
+```
 
 ## Exponential Smoothing State Space Model
 ```{r, ETS Model}
-ETS.daily.fc.train <-  stlf(, h=365)
-autoplot()
+ETS_fit <-  stlf(dailyprice.train.ts, h=365)
 
-autoplot() +
-  autolayer(, series="STL + ETS",PI=FALSE) +
-  ylab("")
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
+  ylab("Electricity Price")
+```
+
+## Data Wrangling - Ex-data
+```{r}
+hourlyload.raw <- hourlyload.raw %>%
+  separate(Eastern.Date.Hour  , into = c("date", "time"), sep = " ") %>%
+  separate(time, into = c("hour", "minute"), sep = ":")
+
+hourlyload <- hourlyload.raw %>%
+  select(date,hour,DAM.Forecast.Load) %>%
+  rename(Demand = DAM.Forecast.Load)
+
+  
+dailyload <- hourlyload %>%
+  filter(!is.na(hourlyload$Demand)) %>% 
+  group_by(date) %>% # here we left column with minutes out
+  summarise( daily_mean_load = mean(Demand))
+
+class(dailyload$date)
+dailyload$date <- as.Date(dailyload$date,format = "%m/%d/%Y")
+
+str(dailyload)
+            
+ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
+  geom_line() +
+  ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
+
+dailyload.ts <- msts(dailyload$daily_mean_load,
+                      seasonal.periods = c(7,365.25),
+                      start = c(2018,1,1)) 
+
+dailyload.ts %>% mstl() %>% autoplot()
+```
+
+```{r}
+#subsetting
+dailyload.train.ts <- subset(dailyload.ts,
+                                   end = length(dailyload.ts)-365) #Jan 1st 2018 to Dec 31st 202
 ```
 
 ## ARIMA with dynamic harmonic fourier components
 ```{r, ARIMA with dynamic harmonic fourier components}
+ARIMA_fit <- auto.arima(dailyprice.train.ts,xreg=fourier(dailyload.train.ts,K=c(2,18))) 
 
+#Forecast with ARIMA
+dailyload.train.ts_for <- forecast(dailyload.train.ts, h = 365)
+ARIMA_forecast <- forecast(object = ARIMA_fit,xreg=fourier(dailyload.train.ts_for$mean,K=c(2,18)),h=365)
+
+#Plot forecast with observed data
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(ARIMA_forecast$mean, series="ARIMA_xgre",PI=FALSE, color = "blue") +
+  ylab("Electricity Pricet")
 ```
 
 ## TBATS
 ```{r, TBATS}
+TBATS_fit <- tbats(dailyprice.train.ts)
 
+#Forecast with TBATS
+TBATS_forecast <- forecast(TBATS_fit, h=365)
+
+#Plot forecast with observed data
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(TBATS_forecast$mean, series="TBATS",PI=FALSE, color = "blue")+
+  ylab("Electricity Price")
 ```
 
 ## Neural Network
 ```{r, Neural Network}
+NN_fit <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyload.train.ts,K=c(2,18)))
 
+#Forecast with NNet
+NN_forecast <- forecast(NN_fit, h=365,xreg=fourier(dailyload.train.ts_for$mean,K=c(2,18)))
+
+#Plot forecast with observed data
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(NN_forecast$mean, series="Neural Network",PI=FALSE, color = "blue")+
+  ylab("Electricity Price") 
 ```
 
 ## Checking accuracy of models
 
 ```{r}
-
 #Model 1: STL + ETS
-ETS_scores <- accuracy(ETS_fit$mean,ts_act_power_daily_test)  
+ETS_scores <- accuracy(ETS_fit$mean, dailyprice.test.ts)  
 
 #Model 2: ARIMA + Fourier 
-ARIMA_scores <- accuracy(ARIMA_Four_for$mean,ts_act_power_daily_test)
+ARIMA_scores <- accuracy(ARIMA_forecast$mean, dailyprice.test.ts)
 
 # Model 3:  TBATS 
-TBATS_scores <- accuracy(TBATS_for$mean,ts_act_power_daily_test)
+TBATS_scores <- accuracy(TBATS_forecast$mean, dailyprice.test.ts)
 
 # Model 3:  Neural Network 
-NN_scores <- accuracy(NN_for$mean,ts_act_power_daily_test)
+NN_scores <- accuracy(NN_forecast$mean, dailyprice.test.ts)
 
 ```
 
@@ -140,11 +201,22 @@ NN_scores <- accuracy(NN_for$mean,ts_act_power_daily_test)
 ```{r}
 #create data frame
 scores <- as.data.frame(
-  rbind()
+  rbind(ETS_scores, ARIMA_scores, TBATS_scores, NN_scores)
   )
-row.names(scores) <- c()
+row.names(scores) <- c("ETS", "ARIMA", "TBATS", "NNet")
 
 #choose model with lowest RMSE
 best_model_index <- which.min(scores[,"RMSE"])
 cat("The best model by RMSE is:", row.names(scores[best_model_index,]))                       
+
+```
+
+## Predicting the future
+
+```{r}
+ETS_fit_2023 <-  stlf(dailyprice.ts, h=365)
+
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(ETS_fit_2023$mean, series="STL + ETS",PI=FALSE, color = "blue") +
+  ylab("Electricity Price")
 ```
