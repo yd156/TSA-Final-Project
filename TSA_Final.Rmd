@@ -205,7 +205,11 @@ dailyprice.ts %>% mstl() %>% autoplot()
 ```{r, ETS Model}
 ETS_fit <-  stlf(dailyprice.train.ts, h=365)
 
+
 ETS_plot<-autoplot(dailyprice.ts, color = "dark grey") +
+
+autoplot(dailyprice.test.ts, color = "dark grey") +
+
   autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ETS_plot
@@ -242,6 +246,9 @@ ARIMA_ng_plot <-autoplot(dailyprice.ts, color = "dark grey") +
   ylab("Electricity Price Forecast with EXO(load)")
 ARIMA_ng_plot
 
+autoplot(dailyprice.test.ts, color = "dark grey") +
+  autolayer(ARIMA_forecast$mean, series="ARIMA_xgre",PI=FALSE, color = "blue") +
+  ylab("Electricity Pricet")
 ```
 
 ## TBATS
@@ -254,8 +261,11 @@ TBATS_fc <- forecast(TBATS_fit, h=365)
 #Plot forecast with observed data
 autoplot(dailyprice.ts, color = "dark grey") +
   autolayer(TBATS_fc$mean, series="TBATS",PI=FALSE, color = "blue")+
+autoplot(dailyprice.test.ts, color = "dark grey") +
+  autolayer(TBATS_forecast$mean, series="TBATS",PI=FALSE, color = "blue")+
   ylab("Electricity Price")
 ```
+
 
 ## Neural Network
 ```{r, Neural Network}
@@ -272,6 +282,8 @@ NN_ng_fc <-forecast(NN_ng, h=365,xreg=fourier(NGprice.fixed.train.ts,K=c(2,18)))
 #Plot forecast with observed data
 NN_origin_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(NN_origin_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
+autoplot(dailyprice.test.ts, color = "dark grey") +
+  autolayer(NN_forecast$mean, series="Neural Network",PI=FALSE, color = "blue")+
   ylab("Electricity Price") 
 NN_origin_plot
 
@@ -344,6 +356,9 @@ autoplot(dailyprice.test.ts) +
   autolayer(TBATS_fc,PI=FALSE, series="TBATS") +
   autolayer(NN_origin_fc,PI=FALSE, series="NN") +
   autolayer(NN_load_fc,PI=FALSE, series="NN+EXO") +
+  autolayer(ARIMA_forecast, PI=FALSE, series="ARIMA + Fourier") +
+  autolayer(TBATS_forecast,PI=FALSE, series="TBATS") +
+  autolayer(NN_forecast,PI=FALSE, series="NN") +
   xlab("Day") + ylab("Electricity Price") +
   guides(colour=guide_legend(title="Forecast"))
 ```
