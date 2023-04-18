@@ -195,7 +195,7 @@ dailyprice.ts %>% mstl() %>% autoplot()
 ```{r, ETS Model}
 ETS_fit <-  stlf(dailyprice.train.ts, h=365)
 
-autoplot(dailyprice.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ```
@@ -212,7 +212,7 @@ dailyload.train.ts_for <- forecast(dailyload.train.ts, h = 365)
 ARIMA_forecast <- forecast(object = ARIMA_fit,xreg=fourier(dailyload.train.ts_for$mean,K=c(2,18)),h=365)
 
 #Plot forecast with observed data
-autoplot(dailyprice.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ARIMA_forecast$mean, series="ARIMA_xgre",PI=FALSE, color = "blue") +
   ylab("Electricity Pricet")
 ```
@@ -225,10 +225,11 @@ TBATS_fit <- tbats(dailyprice.train.ts)
 TBATS_forecast <- forecast(TBATS_fit, h=365)
 
 #Plot forecast with observed data
-autoplot(dailyprice.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(TBATS_forecast$mean, series="TBATS",PI=FALSE, color = "blue")+
   ylab("Electricity Price")
 ```
+
 
 ## Neural Network
 ```{r, Neural Network}
@@ -238,7 +239,7 @@ NN_fit <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyload.train.ts,K=c
 NN_forecast <- forecast(NN_fit, h=365,xreg=fourier(dailyload.train.ts_for$mean,K=c(2,18)))
 
 #Plot forecast with observed data
-autoplot(dailyprice.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(NN_forecast$mean, series="Neural Network",PI=FALSE, color = "blue")+
   ylab("Electricity Price") 
 ```
