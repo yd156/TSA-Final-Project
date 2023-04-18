@@ -286,11 +286,11 @@ kbl(scores,
 ```
 
 ```{r}
-autoplot(dailyprice.ts) +
-  autolayer(ETS, PI=FALSE, series="STL+ETS") +
-  autolayer(ARIMA, PI=FALSE, series="ARIMA + Fourier") +
-  autolayer(TBATS,PI=FALSE, series="TBATS") +
-  autolayer(NNet,PI=FALSE, series="NN") +
+autoplot(dailyprice.test.ts) +
+  autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
+  autolayer(ARIMA_forecast, PI=FALSE, series="ARIMA + Fourier") +
+  autolayer(TBATS_forecast,PI=FALSE, series="TBATS") +
+  autolayer(NN_forecast,PI=FALSE, series="NN") +
   xlab("Day") + ylab("Electricity Price") +
   guides(colour=guide_legend(title="Forecast"))
 ```
