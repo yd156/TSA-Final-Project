@@ -65,9 +65,6 @@ dailyprice <- hourlyprice %>%
 class(dailyprice$date)
 dailyprice$date <- as.Date(dailyprice$date,format = "%m/%d/%Y")
             
-ggplot(dailyprice, aes(x=date,y=daily_mean_price)) +
-  geom_line() +
-  ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
 
 dailyprice.ts <- msts(dailyprice$daily_mean_price,
                       seasonal.periods = c(7,365.25),
@@ -94,10 +91,15 @@ class(dailyload$date)
 dailyload$date <- as.Date(dailyload$date,format = "%m/%d/%Y")
 
 str(dailyload)
+
+ggplot(dailyprice, aes(x=date, y=daily_mean_price)) +
+  geom_line() +
+  ggtitle("Average Daily Electricity Price in NYC from 2018 to 2022");
             
 ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
   geom_line() +
-  ylab("Average Daily Electricity Price in NYC from 2018 to 2022")
+  ggtitle("Average Daily Electricity Load in NYC from 2018 to 2022")+
+  ylab("megawatthours")
 
 ```
 
@@ -119,6 +121,11 @@ zoo_data_filled <- na.approx(zoo_data)
 
 # Convert the filled zoo object back to a data frame
 NGprice.fixed <- data.frame(Date = complete_data$Day, value = coredata(zoo_data_filled))
+
+ggplot(NGprice.fixed, aes(x=Date,y=value)) +
+  geom_line() +
+  ggtitle("Daily Natural Gas Spot Price from 2018 to 2022")+
+  ylab("Dollars per Million Btu")
 ```
 
 ##Data Wrangling - daily to monthly
@@ -146,8 +153,20 @@ Monthlyload <- dailyload %>%
   summarise(monthly_load = mean(daily_mean_load))
 
 REgeneration.monthly <- REgeneration.raw %>% 
-  select(Month, Total) %>%
-  rename(Date = Month, REgeneration_all = Total)
+  select(Total) %>%
+  rename(REgeneration_all = Total)
+
+start_date <- as.Date("2018-01-01")
+end_date <- as.Date("2022-12-01")
+monthly_dates <- seq(start_date, end_date, by = "month")
+
+REgeneration.monthly <- REgeneration.monthly %>% 
+  mutate(date = monthly_dates)
+
+ggplot(REgeneration.monthly, aes(x=date,y=REgeneration_all)) +
+  geom_line() +
+  ggtitle("Monthly REgeneration from 2018 to 2023")+
+  ylab("Dollars per Million Btu")
 
 ```
 
@@ -205,11 +224,7 @@ dailyprice.ts %>% mstl() %>% autoplot()
 ```{r, ETS Model}
 ETS_fit <-  stlf(dailyprice.train.ts, h=365)
 
-
-ETS_plot<-autoplot(dailyprice.ts, color = "dark grey") +
-
-autoplot(dailyprice.test.ts, color = "dark grey") +
-
+ETS_plot<-autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ETS_fit$mean, series="STL + ETS",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ETS_plot
@@ -221,9 +236,8 @@ ETS_plot
 ARIMA_origin<- auto.arima(dailyprice.train.ts)
 ARIMA_load <- auto.arima(dailyprice.train.ts,xreg=fourier(dailyload.train.ts,K=c(2,18)))
 ARIMA_ng<- auto.arima(dailyprice.train.ts,xreg=fourier(NGprice.fixed.train.ts,K=c(2,18)))
-ARIMA_ng&load <- auto.arima(dailyprice.train.ts,xreg=fourier(dailyload.train.ts,NGprice.fixed.train.ts,K=c(2,18)))
 
-dailyload.train.ts_fc <- forecast(dailyload.train.ts,NGprice.fixed.train.ts, h = 365,level = 0.90)
+dailyload.train.ts_fc <- forecast(dailyload.train.ts,NGprice.fixed.train.ts, h = 365)
 NGprice.fixed.train.ts_fc <- forecast(dailyload.train.ts, h = 365)
 
 ARIMA_origin_fc <- forecast(object = ARIMA_origin,h=365)
@@ -231,24 +245,20 @@ ARIMA_load_fc <- forecast(object = ARIMA_origin_fc,xreg=fourier(dailyload.train.
 ARIMA_ng_fc <- forecast(object = ARIMA_origin_fc,xreg= fourier(NGprice.fixed.train.ts_fc$mean,K=c(2,6),h=365),h=365)
 
 #Plot forecast with observed data
-ARIMA_plot <- autoplot(dailyprice.ts, color = "dark grey") +
-  autolayer(ARIMA_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
+ARIMA_origin_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+  autolayer(ARIMA_origin_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
   ylab("Electricity Price Forecast")
-ARIMA_plot
+ARIMA_origin_plot
 
-ARIMA_load_plot <- autoplot(dailyprice.ts, color = "dark grey") +
+ARIMA_load_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ARIMA_load_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
   ylab("Electricity Price Forecast with EXO(load)")
 ARIMA_load_plot 
 
-ARIMA_ng_plot <-autoplot(dailyprice.ts, color = "dark grey") +
+ARIMA_ng_plot <-autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ARIMA_ng_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
   ylab("Electricity Price Forecast with EXO(load)")
 ARIMA_ng_plot
-
-autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(ARIMA_forecast$mean, series="ARIMA_xgre",PI=FALSE, color = "blue") +
-  ylab("Electricity Pricet")
 ```
 
 ## TBATS
@@ -356,9 +366,6 @@ autoplot(dailyprice.test.ts) +
   autolayer(TBATS_fc,PI=FALSE, series="TBATS") +
   autolayer(NN_origin_fc,PI=FALSE, series="NN") +
   autolayer(NN_load_fc,PI=FALSE, series="NN+EXO") +
-  autolayer(ARIMA_forecast, PI=FALSE, series="ARIMA + Fourier") +
-  autolayer(TBATS_forecast,PI=FALSE, series="TBATS") +
-  autolayer(NN_forecast,PI=FALSE, series="NN") +
   xlab("Day") + ylab("Electricity Price") +
   guides(colour=guide_legend(title="Forecast"))
 ```
