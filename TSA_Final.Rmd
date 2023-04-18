@@ -19,6 +19,7 @@ library(tidyverse)
 library(smooth)
 library(kableExtra)
 library(dplyr)
+library(zoo)
 ```
 
 ##Checking working directory
@@ -183,14 +184,11 @@ dailyload.ts <- msts(dailyload$daily_mean_load,
 dailyload.train.ts <- subset(dailyload.ts,
                                    end = length(dailyload.ts)-365) #Jan 1st 2018 to Dec 31st 202
 ```
-```
+
 
 ## Decomposing time series objects
 ```{r}
 dailyprice.ts %>% mstl() %>% autoplot()
-
-```
-
 ```
 
 ## Exponential Smoothing State Space Model
@@ -262,6 +260,7 @@ NN_scores <- accuracy(NN_forecast$mean, dailyprice.test.ts)
 
 ```
 
+
 ## Compare performance metrics
 ```{r}
 #create data frame
@@ -295,6 +294,8 @@ autoplot(dailyprice.ts) +
   xlab("Day") + ylab("Electricity Price") +
   guides(colour=guide_legend(title="Forecast"))
 ```
+
+
 
 ## Predicting the future
 
