@@ -321,14 +321,13 @@ ARIMA_load_score <- accuracy(ARIMA_load_fc$mean, dailyprice.test.ts)
 #Model 2.2: ARIMA + Fourier(NG)
 ARIMA_ng_score <- accuracy(ARIMA_ng_fc$mean, dailyprice.test.ts)
 
-
 # Model 3:  TBATS 
 TBATS_score <- accuracy(TBATS_fc$mean, dailyprice.test.ts)
-# Model 3:  Neural Network 
+# Model 4:  Neural Network 
 NN_score <- accuracy(NN_origin_fc$mean, dailyprice.test.ts)
-# Model 3.1:  Neural Network 
+# Model 4.1:  Neural Network 
 NN_load_score <- accuracy(NN_load_fc$mean, dailyprice.test.ts)
-# Model 3.2:  Neural Network 
+# Model 4.2:  Neural Network 
 NN_ng_score <- accuracy(NN_ng_fc$mean, dailyprice.test.ts)
 
 ```
@@ -362,7 +361,7 @@ kbl(scores,
 autoplot(dailyprice.test.ts) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
   autolayer(ARIMA_origin_fc, PI=FALSE, series="ARIMA + Fourier") +
-  autolayer(ARIMA_load_fc, PI=FALSE, series="ARIMA + EXO")
+  autolayer(ARIMA_load_fc, PI=FALSE, series="ARIMA + EXO")+
   autolayer(TBATS_fc,PI=FALSE, series="TBATS") +
   autolayer(NN_origin_fc,PI=FALSE, series="NN") +
   autolayer(NN_load_fc,PI=FALSE, series="NN+EXO") +
@@ -377,7 +376,7 @@ autoplot(dailyprice.test.ts) +
 ```{r}
 ETS_fit_2023 <-  stlf(dailyprice.ts, h=365)
 
-autoplot(dailyprice.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(ETS_fit_2023$mean, series="STL + ETS",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ```
