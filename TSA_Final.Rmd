@@ -236,7 +236,8 @@ ARIMA <- auto.arima(dailyprice.train.ts,
 # dailyload.train.ts_fc <- forecast(dailyload.train.ts,NGprice.fixed.train.ts, h = 365,level=0.9)
 # NGprice.fixed.train.ts_fc <- forecast(dailyload.train.ts, h = 365)
 
-ARIMA_fc <- forecast(object = ARIMA,h=365)
+ARIMA_fc <- forecast(ARIMA,
+                  xreg=fourier(dailyprice.train.ts,K=c(2,12),h=365),h=365)
 # ARIMA_load_fc <- forecast(object = ARIMA_origin_fc,xreg=fourier(dailyload.train.ts_fc$mean,K=c(2,12),h=365),h=365)
 # ARIMA_ng_fc <- forecast(object = ARIMA_origin_fc,xreg= fourier(NGprice.fixed.train.ts_fc$mean,K=c(2,12),h=365),h=365)
 
@@ -266,7 +267,7 @@ TBATS_fc <- forecast(TBATS_fit, h=365)
 
 #Plot forecast with observed data
 autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(TBATS_forecast$mean, series="TBATS",PI=FALSE, color = "blue")+
+  autolayer(TBATS_fc$mean, series="TBATS",PI=FALSE, color = "blue")+
   ylab("Electricity Price")
 ```
 
@@ -284,7 +285,7 @@ NN_origin_fc<- forecast(NN_origin,h=365,xreg=fourier(dailyprice.train.ts,K=c(2,1
 #NN_ng_fc <-forecast(NN_ng, h=365,xreg=fourier(NGprice.fixed.train.ts,K=c(2,12)))
 
 #Plot forecast with observed data
-NN_origin_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(NN_origin_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
   ylab("Electricity Price") 
 
@@ -355,7 +356,7 @@ kbl(scores,
 ```{r}
 autoplot(dailyprice.test.ts) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
-  autolayer(ARIMA_origin_fc, PI=FALSE, series="ARIMA") +
+  autolayer(ARIMA_fc, PI=FALSE, series="ARIMA") +
   autolayer(TBATS_fc,PI=FALSE, series="TBATS") +
   autolayer(NN_origin_fc,PI=FALSE, series="NN") +
   xlab("Day") + ylab("Electricity Price") +
