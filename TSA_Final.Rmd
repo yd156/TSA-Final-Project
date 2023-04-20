@@ -30,14 +30,13 @@ getwd()
 ##Import Data
 
 ```{r, import data}
-library(readxl)
-hourlyprice.raw <- read.csv("./Data/Day-Ahead_Zonal_NYC_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
-hourlyload.raw <- read.csv("./Data/NYC Load_Forecast_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
-NGprice.raw <- read.csv("./Data/Henry_Hub_Natural_Gas_Spot_Price.csv",stringsAsFactors = FALSE) # Daily NG Price from January 2018 to December 2022
-REgeneration.raw <- read.csv("./Data/Monthly Renewable Generation_2018-2022.csv",stringsAsFactors = FALSE) # RE generation from January 2008 to December 2022
+hourlyprice.raw <- read.csv("./Data/Day-Ahead_Zonal_Price_NYC_2010-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2010 to December 2022
+#hourlyload.raw <- read.csv("./Data/NYC Load_Forecast_2018-2022.csv",stringsAsFactors = FALSE) # hourly LBMP of NYC from January 2018 to December 2022
+#NGprice.raw <- read.csv("./Data/Henry_Hub_Natural_Gas_Spot_Price.csv",stringsAsFactors = FALSE) # Daily NG Price from January 2018 to December 2022
+#REgeneration.raw <- read.csv("./Data/Monthly Renewable Generation_2018-2022.csv",stringsAsFactors = FALSE) # RE generation from January 2008 to December 2022
 
 head(hourlyprice.raw, 10)
-head(hourlyload.raw, 10)
+#head(hourlyload.raw, 10)
 ```
 
 
@@ -46,178 +45,172 @@ head(hourlyload.raw, 10)
 class(hourlyprice.raw$Date)
 class(hourlyprice.raw$DAM.Zonal.LBMP)
 
+
 hourlyprice.raw <- hourlyprice.raw %>%
-  separate(Date, into = c("date", "time"), sep = " ") %>%
-  separate(time, into = c("hour", "minute"), sep = ":")
+  separate(date, into = c("date", "time"), sep = " ")
 
 hourlyprice <- hourlyprice.raw %>%
-  select(date,hour,DAM.Zonal.LBMP) %>%
+  select(date,DAM.Zonal.LBMP) %>%
   rename(Price = DAM.Zonal.LBMP)
 
+hourlyprice.raw$date <- as.Date(hourlyprice.raw$date,format = "%m/%d/%Y")
   
 dailyprice <- hourlyprice %>%
   filter( !is.na(hourlyprice$Price)) %>% 
-  group_by(date) %>% # here we left column with minutes out
-  summarise( daily_mean_price = mean(Price))%>%
-  slice(1:(n() - 1))
-
-
-class(dailyprice$date)
-dailyprice$date <- as.Date(dailyprice$date,format = "%m/%d/%Y")
+  group_by(date) %>% 
+  summarise(daily_mean_price = mean(Price))
+  # slice(1:(n() - 1))
             
 
 dailyprice.ts <- msts(dailyprice$daily_mean_price,
                       seasonal.periods = c(7,365.25),
-                      start = c(2018,1,1)) 
-
-autoplot(dailyprice.ts)
-
-hourlyload.raw <- hourlyload.raw %>%
-  separate(Eastern.Date.Hour  , into = c("date", "time"), sep = " ") %>%
-  separate(time, into = c("hour", "minute"), sep = ":")
-
-hourlyload <- hourlyload.raw %>%
-  select(date,hour,DAM.Forecast.Load) %>%
-  rename(Demand = DAM.Forecast.Load)
-  
-  
-dailyload <- hourlyload %>%
-  filter(!is.na(hourlyload$Demand)) %>% 
-  group_by(date) %>% # here we left column with minutes out
-  summarise( daily_mean_load = mean(Demand))%>%
-  slice(1:(n() - 1))
-
-class(dailyload$date)
-dailyload$date <- as.Date(dailyload$date,format = "%m/%d/%Y")
-
-str(dailyload)
+                      start = c(2010,1,1)) 
+# hourlyload.raw <- hourlyload.raw %>%
+#   separate(Eastern.Date.Hour  , into = c("date", "time"), sep = " ") %>%
+#   separate(time, into = c("hour", "minute"), sep = ":")
+# 
+# hourlyload <- hourlyload.raw %>%
+#   select(date,hour,DAM.Forecast.Load) %>%
+#   rename(Demand = DAM.Forecast.Load)
+#   
+#   
+# dailyload <- hourlyload %>%
+#   filter(!is.na(hourlyload$Demand)) %>% 
+#   group_by(date) %>% # here we left column with minutes out
+#   summarise( daily_mean_load = mean(Demand))%>%
+#   slice(1:(n() - 1))
+# 
+# class(dailyload$date)
+# dailyload$date <- as.Date(dailyload$date,format = "%m/%d/%Y")
+# 
+# str(dailyload)
 
 ggplot(dailyprice, aes(x=date, y=daily_mean_price)) +
   geom_line() +
-  ggtitle("Average Daily Electricity Price in NYC from 2018 to 2022");
+  ggtitle("Average Daily Electricity Price in NYC from 2010 to 2022");
             
-ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
-  geom_line() +
-  ggtitle("Average Daily Electricity Load in NYC from 2018 to 2022")+
-  ylab("megawatthours")
+# ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
+#   geom_line() +
+#   ggtitle("Average Daily Electricity Load in NYC from 2018 to 2022")+
+#   ylab("megawatthours")
 
 ```
 
 ## NG fix missing dates
 ```{r}
-NGprice.raw$Day <-as.Date(NGprice.raw$Day,format = "%m/%d/%Y")
-# Create a sequence of dates from the minimum to maximum date in the dataset
-date_seq <- data.frame(Day = seq(min(NGprice.raw$Day), max(NGprice.raw$Day), by = "day"))
-
-library(dplyr)
-# Merge the sequence of dates with the original dataset using a left join
-complete_data <- left_join(date_seq, NGprice.raw, by = "Day")
-
-# Create a zoo object from the 'value' column of the complete dataset
-zoo_data <- zoo(complete_data$Natural.Gas.Spot.Price.Dollars.per.Million.Btu)
-
-# Fill the missing values with the average of the previous day and the next day
-zoo_data_filled <- na.approx(zoo_data)
-
-# Convert the filled zoo object back to a data frame
-NGprice.fixed <- data.frame(Date = complete_data$Day, value = coredata(zoo_data_filled))
-
-ggplot(NGprice.fixed, aes(x=Date,y=value)) +
-  geom_line() +
-  ggtitle("Daily Natural Gas Spot Price from 2018 to 2022")+
-  ylab("Dollars per Million Btu")
+# NGprice.raw$Day <-as.Date(NGprice.raw$Day,format = "%m/%d/%Y")
+# # Create a sequence of dates from the minimum to maximum date in the dataset
+# date_seq <- data.frame(Day = seq(min(NGprice.raw$Day), max(NGprice.raw$Day), by = "day"))
+# 
+# library(dplyr)
+# # Merge the sequence of dates with the original dataset using a left join
+# complete_data <- left_join(date_seq, NGprice.raw, by = "Day")
+# 
+# # Create a zoo object from the 'value' column of the complete dataset
+# zoo_data <- zoo(complete_data$Natural.Gas.Spot.Price.Dollars.per.Million.Btu)
+# 
+# # Fill the missing values with the average of the previous day and the next day
+# zoo_data_filled <- na.approx(zoo_data)
+# 
+# # Convert the filled zoo object back to a data frame
+# NGprice.fixed <- data.frame(Date = complete_data$Day, value = coredata(zoo_data_filled))
+# 
+# ggplot(NGprice.fixed, aes(x=Date,y=value)) +
+#   geom_line() +
+#   ggtitle("Daily Natural Gas Spot Price from 2018 to 2022")+
+#   ylab("Dollars per Million Btu")
 ```
 
 ##Data Wrangling - daily to monthly
 ```{r}
-NGprice.daily <- NGprice.fixed %>%
-  rename(Price = value)
-NGprice.daily$Date <-as.Date(NGprice.daily$Date,format = "%m/%d/%Y")
-
-
-# Group the data by month and calculate the average price for each month
-NGprice.monthly <- NGprice.daily %>%
-  mutate(month = format(Date, "%Y-%m")) %>%
-  group_by(month) %>%
-  summarise(avg_price = mean(Price))
-
-
-Monthlyprice <- dailyprice %>%
-  mutate(month = format(date, "%Y-%m")) %>%
-  group_by(month) %>%
-  summarise(monthly_price = mean(daily_mean_price))
-
-Monthlyload <- dailyload %>%
-  mutate(month = format(date, "%Y-%m")) %>%
-  group_by(month) %>%
-  summarise(monthly_load = mean(daily_mean_load))
-
-REgeneration.monthly <- REgeneration.raw %>% 
-  select(Total) %>%
-  rename(REgeneration_all = Total)
-
-start_date <- as.Date("2018-01-01")
-end_date <- as.Date("2022-12-01")
-monthly_dates <- seq(start_date, end_date, by = "month")
-
-REgeneration.monthly <- REgeneration.monthly %>% 
-  mutate(date = monthly_dates)
-
-ggplot(REgeneration.monthly, aes(x=date,y=REgeneration_all)) +
-  geom_line() +
-  ggtitle("Monthly REgeneration from 2018 to 2023")+
-  ylab("Dollars per Million Btu")
+# NGprice.daily <- NGprice.fixed %>%
+#   rename(Price = value)
+# NGprice.daily$Date <-as.Date(NGprice.daily$Date,format = "%m/%d/%Y")
+# 
+# 
+# # Group the data by month and calculate the average price for each month
+# NGprice.monthly <- NGprice.daily %>%
+#   mutate(month = format(Date, "%Y-%m")) %>%
+#   group_by(month) %>%
+#   summarise(avg_price = mean(Price))
+# 
+# 
+# Monthlyprice <- dailyprice %>%
+#   mutate(month = format(date, "%Y-%m")) %>%
+#   group_by(month) %>%
+#   summarise(monthly_price = mean(daily_mean_price))
+# 
+# Monthlyload <- dailyload %>%
+#   mutate(month = format(date, "%Y-%m")) %>%
+#   group_by(month) %>%
+#   summarise(monthly_load = mean(daily_mean_load))
+# 
+# REgeneration.monthly <- REgeneration.raw %>% 
+#   select(Total) %>%
+#   rename(REgeneration_all = Total)
+# 
+# start_date <- as.Date("2018-01-01")
+# end_date <- as.Date("2022-12-01")
+# monthly_dates <- seq(start_date, end_date, by = "month")
+# 
+# REgeneration.monthly <- REgeneration.monthly %>% 
+#   mutate(date = monthly_dates)
+# 
+# ggplot(REgeneration.monthly, aes(x=date,y=REgeneration_all)) +
+#   geom_line() +
+#   ggtitle("Monthly REgeneration from 2018 to 2023")+
+#   ylab("Dollars per Million Btu")
 
 ```
 
 ##Correlation Test
 ```{r}
-correlation.df <- data.frame(Monthlyprice$monthly_price,REgeneration.monthly$REgeneration_all, NGprice.monthly$avg_price,Monthlyload$monthly_load)
-
-correlation.df <- correlation.df %>%
-  rename(Eprice=Monthlyprice.monthly_price,NGprice=NGprice.monthly.avg_price,REgeneration=REgeneration.monthly.REgeneration_all,Eload=Monthlyload.monthly_load)
-
-correlation.model <- lm(data = correlation.df, Eprice~NGprice+REgeneration+Eload)
-summary(correlation.model)
-cor_matrix <- cor(correlation.df)
-cor_matrix
-
-cor_table <- data.frame(cor_matrix)
-cor_table %>%
-  kable("html", align = "c", caption = "Correlation Coefficient Matrix") %>%
-  kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
-  column_spec(1, border_right = TRUE)
+# correlation.df <- data.frame(Monthlyprice$monthly_price,REgeneration.monthly$REgeneration_all, NGprice.monthly$avg_price,Monthlyload$monthly_load)
+# 
+# correlation.df <- correlation.df %>%
+#   rename(Eprice=Monthlyprice.monthly_price,NGprice=NGprice.monthly.avg_price,REgeneration=REgeneration.monthly.REgeneration_all,Eload=Monthlyload.monthly_load)
+# 
+# correlation.model <- lm(data = correlation.df, Eprice~NGprice+REgeneration+Eload)
+# summary(correlation.model)
+# cor_matrix <- cor(correlation.df)
+# cor_matrix
+# 
+# cor_table <- data.frame(cor_matrix)
+# cor_table %>%
+#   kable("html", align = "c", caption = "Correlation Coefficient Matrix") %>%
+#   kable_styling(bootstrap_options = "striped", full_width = FALSE) %>%
+#   column_spec(1, border_right = TRUE)
 ```
 
 ## Seperating into train and test subsets
 ```{r}
 dailyprice.train.ts <- subset(dailyprice.ts,
-                                   end = length(dailyprice.ts)-365) #Jan 1st 2018 to Dec 30st 2021
+                                   end = length(dailyprice.ts)-365) #Jan 1st 2010 to Dec 30st 2021
 dailyprice.test.ts <- subset(dailyprice.ts,
                                    start = length(dailyprice.ts)-365) # Jan 1st 2022 to Dec 30st 2022
 autoplot (dailyprice.train.ts)
 autoplot (dailyprice.test.ts)
 
 
-dailyload.ts <- msts(dailyload$daily_mean_load,
-                      seasonal.periods = c(7,365.25),
-                      start = c(2018,1,1)) 
-
-NGprice.fixed.ts <- msts(NGprice.fixed$value,
-                      seasonal.periods = c(7,365.25),
-                      start = c(2018,1,1))
-#subsetting
-dailyload.train.ts <- subset(dailyload.ts,
-                                   end = length(dailyload.ts)-365) #Jan 1st 2018 to Dec 30st 2021
-NGprice.fixed.train.ts <- subset(dailyload.ts,
-                                   end = length(NGprice.fixed.ts)-365) #Jan 1st 2018 to Dec 31st 2021
+# dailyload.ts <- msts(dailyload$daily_mean_load,
+#                       seasonal.periods = c(7,365.25),
+#                       start = c(2018,1,1)) 
+# 
+# NGprice.fixed.ts <- msts(NGprice.fixed$value,
+#                       seasonal.periods = c(7,365.25),
+#                       start = c(2018,1,1))
+# #subsetting
+# dailyload.train.ts <- subset(dailyload.ts,
+#                                    end = length(dailyload.ts)-365) #Jan 1st 2018 to Dec 30st 2021
+# NGprice.fixed.train.ts <- subset(dailyload.ts,
+#                                    end = length(NGprice.fixed.ts)-365) #Jan 1st 2018 to Dec 31st 2021
 
 ```
 
 
 ## Decomposing time series objects
 ```{r}
-dailyprice.ts %>% mstl() %>% autoplot()
+dailyprice.train.ts %>% mstl() %>% autoplot()
 ```
 
 ## Exponential Smoothing State Space Model
@@ -233,32 +226,35 @@ ETS_plot
 
 ## ARIMA with dynamic harmonic fourier components
 ```{r, ARIMA with dynamic harmonic fourier components}
-ARIMA_origin<- auto.arima(dailyprice.train.ts)
-ARIMA_load <- auto.arima(dailyprice.train.ts,xreg=fourier(dailyload.train.ts,K=c(2,18)))
-ARIMA_ng<- auto.arima(dailyprice.train.ts,xreg=fourier(NGprice.fixed.train.ts,K=c(2,18)))
+ARIMA <- auto.arima(dailyprice.train.ts,
+                  seasonal=TRUE, 
+                  lambda=0,
+                  xreg=fourier(dailyprice.train.ts,K=c(2,12)))
+# ARIMA_load <- auto.arima(dailyprice.train.ts,xreg=fourier(dailyload.train.ts,K=c(2,12)))
+# ARIMA_ng<- auto.arima(dailyprice.train.ts,xreg=fourier(NGprice.fixed.train.ts,K=c(2,12)))
+# 
+# dailyload.train.ts_fc <- forecast(dailyload.train.ts,NGprice.fixed.train.ts, h = 365,level=0.9)
+# NGprice.fixed.train.ts_fc <- forecast(dailyload.train.ts, h = 365)
 
-dailyload.train.ts_fc <- forecast(dailyload.train.ts,NGprice.fixed.train.ts, h = 365)
-NGprice.fixed.train.ts_fc <- forecast(dailyload.train.ts, h = 365)
-
-ARIMA_origin_fc <- forecast(object = ARIMA_origin,h=365)
-ARIMA_load_fc <- forecast(object = ARIMA_origin_fc,xreg=fourier(dailyload.train.ts_fc$mean,K=c(2,6),h=365),h=365)
-ARIMA_ng_fc <- forecast(object = ARIMA_origin_fc,xreg= fourier(NGprice.fixed.train.ts_fc$mean,K=c(2,6),h=365),h=365)
+ARIMA_fc <- forecast(object = ARIMA,h=365)
+# ARIMA_load_fc <- forecast(object = ARIMA_origin_fc,xreg=fourier(dailyload.train.ts_fc$mean,K=c(2,12),h=365),h=365)
+# ARIMA_ng_fc <- forecast(object = ARIMA_origin_fc,xreg= fourier(NGprice.fixed.train.ts_fc$mean,K=c(2,12),h=365),h=365)
 
 #Plot forecast with observed data
-ARIMA_origin_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(ARIMA_origin_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
+ARIMA_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+  autolayer(ARIMA_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
   ylab("Electricity Price Forecast")
-ARIMA_origin_plot
-
-ARIMA_load_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(ARIMA_load_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
-  ylab("Electricity Price Forecast with EXO(load)")
-ARIMA_load_plot 
-
-ARIMA_ng_plot <-autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(ARIMA_ng_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
-  ylab("Electricity Price Forecast with EXO(load)")
-ARIMA_ng_plot
+ARIMA_plot
+# 
+# ARIMA_load_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+#   autolayer(ARIMA_load_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
+#   ylab("Electricity Price Forecast with EXO(load)")
+# ARIMA_load_plot 
+# 
+# ARIMA_ng_plot <-autoplot(dailyprice.test.ts, color = "dark grey") +
+#   autolayer(ARIMA_ng_fc$mean, series="ARIMA_xgre",PI=FALSE,color = "blue") +
+#   ylab("Electricity Price Forecast with EXO(load)")
+# ARIMA_ng_plot
 ```
 
 ## TBATS
@@ -269,8 +265,6 @@ TBATS_fit <- tbats(dailyprice.train.ts)
 TBATS_fc <- forecast(TBATS_fit, h=365)
 
 #Plot forecast with observed data
-autoplot(dailyprice.ts, color = "dark grey") +
-  autolayer(TBATS_fc$mean, series="TBATS",PI=FALSE, color = "blue")+
 autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(TBATS_forecast$mean, series="TBATS",PI=FALSE, color = "blue")+
   ylab("Electricity Price")
@@ -279,33 +273,30 @@ autoplot(dailyprice.test.ts, color = "dark grey") +
 
 ## Neural Network
 ```{r, Neural Network}
-NN_origin <- nnetar(dailyprice.train.ts,p=1,P=0)
-NN_load <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyload.train.ts,K=c(2,18)))
-NN_ng <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(NGprice.fixed.train.ts,K=c(2,18)))
+NN_origin <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyprice.train.ts, K=c(2,12)))
+#NN_load <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyload.train.ts,K=c(2,12)))
+#NN_ng <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(NGprice.fixed.train.ts,K=c(2,12)))
 
 
 #Forecast with NNet
-NN_origin_fc<- forecast(NN_origin, h=365,K=c(2,18))
-NN_load_fc <- forecast(NN_load, h=365,xreg=fourier(dailyload.train.ts_fc$mean,K=c(2,18)))
-NN_ng_fc <-forecast(NN_ng, h=365,xreg=fourier(NGprice.fixed.train.ts,K=c(2,18)))
+NN_origin_fc<- forecast(NN_origin,h=365,xreg=fourier(dailyprice.train.ts,K=c(2,12),h=365))
+#NN_load_fc <- forecast(NN_load, h=365,xreg=fourier(dailyload.train.ts_fc$mean,K=c(2,12)))
+#NN_ng_fc <-forecast(NN_ng, h=365,xreg=fourier(NGprice.fixed.train.ts,K=c(2,12)))
 
 #Plot forecast with observed data
 NN_origin_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
   autolayer(NN_origin_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
-autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(NN_forecast$mean, series="Neural Network",PI=FALSE, color = "blue")+
   ylab("Electricity Price") 
-NN_origin_plot
 
-NN_load_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(NN_load_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
-  ylab("Electricity Price") 
-NN_load_plot
-
-NN_ng_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(NN_ng_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
-  ylab("Electricity Price") 
-NN_ng_plot
+# NN_load_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+#   autolayer(NN_load_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
+#   ylab("Electricity Price") 
+# NN_load_plot
+# 
+# NN_ng_plot <- autoplot(dailyprice.test.ts, color = "dark grey") +
+#   autolayer(NN_ng_fc$mean, series="Neural Network",PI=FALSE, color = "blue")+
+#   ylab("Electricity Price") 
+# NN_ng_plot
 
 ```
 
@@ -316,19 +307,19 @@ NN_ng_plot
 ETS_score <- accuracy(ETS_fit$mean, dailyprice.test.ts)  
 #Model 2: ARIMA 
 ARIMA_score <- accuracy(ARIMA_fc$mean, dailyprice.test.ts)
-#Model 2.1: ARIMA + Fourier(Load)
-ARIMA_load_score <- accuracy(ARIMA_load_fc$mean, dailyprice.test.ts)
-#Model 2.2: ARIMA + Fourier(NG)
-ARIMA_ng_score <- accuracy(ARIMA_ng_fc$mean, dailyprice.test.ts)
+# #Model 2.1: ARIMA + Fourier(Load)
+# ARIMA_load_score <- accuracy(ARIMA_load_fc$mean, dailyprice.test.ts)
+# #Model 2.2: ARIMA + Fourier(NG)
+# ARIMA_ng_score <- accuracy(ARIMA_ng_fc$mean, dailyprice.test.ts)
 
 # Model 3:  TBATS 
 TBATS_score <- accuracy(TBATS_fc$mean, dailyprice.test.ts)
 # Model 4:  Neural Network 
 NN_score <- accuracy(NN_origin_fc$mean, dailyprice.test.ts)
-# Model 4.1:  Neural Network 
-NN_load_score <- accuracy(NN_load_fc$mean, dailyprice.test.ts)
-# Model 4.2:  Neural Network 
-NN_ng_score <- accuracy(NN_ng_fc$mean, dailyprice.test.ts)
+# # Model 4.1:  Neural Network 
+# NN_load_score <- accuracy(NN_load_fc$mean, dailyprice.test.ts)
+# # Model 4.2:  Neural Network 
+# NN_ng_score <- accuracy(NN_ng_fc$mean, dailyprice.test.ts)
 
 ```
 
@@ -337,10 +328,14 @@ NN_ng_score <- accuracy(NN_ng_fc$mean, dailyprice.test.ts)
 ```{r}
 #create data frame
 scores <- as.data.frame(
-  rbind(ETS_score, ARIMA_score,ARIMA_load_score,ARIMA_ng_score, TBATS_score, NN_score,NN_load_score, NN_load_score)
+  rbind(ETS_score, ARIMA_score, TBATS_score, NN_score)
   )
-row.names(scores) <- c("ETS", "ARIMA","ARIMA + exo(load)" ,"ARIMA + exo(ng)","TBATS", "NN", "NN+ exo(load)", "NN+ exo(ng)")
+row.names(scores) <- c("ETS", "ARIMA","TBATS", "NN")
 
+# scores <- as.data.frame(
+#   rbind(ETS_score, ARIMA_score,ARIMA_load_score,ARIMA_ng_score, TBATS_score, NN_score,NN_load_score, NN_load_score)
+#   )
+# row.names(scores) <- c("ETS", "ARIMA","ARIMA + exo(load)" ,"ARIMA + exo(ng)","TBATS", "NN", "NN+ exo(load)", "NN+ exo(ng)")
 #choose model with lowest RMSE
 best_model_index <- which.min(scores[,"RMSE"])
 cat("The best model by RMSE is:", row.names(scores[best_model_index,]))                       
@@ -360,16 +355,12 @@ kbl(scores,
 ```{r}
 autoplot(dailyprice.test.ts) +
   autolayer(ETS_fit, PI=FALSE, series="STL+ETS") +
-  autolayer(ARIMA_origin_fc, PI=FALSE, series="ARIMA + Fourier") +
-  autolayer(ARIMA_load_fc, PI=FALSE, series="ARIMA + EXO")+
+  autolayer(ARIMA_origin_fc, PI=FALSE, series="ARIMA") +
   autolayer(TBATS_fc,PI=FALSE, series="TBATS") +
   autolayer(NN_origin_fc,PI=FALSE, series="NN") +
-  autolayer(NN_load_fc,PI=FALSE, series="NN+EXO") +
   xlab("Day") + ylab("Electricity Price") +
   guides(colour=guide_legend(title="Forecast"))
 ```
-
-
 
 ## Predicting the future
 
