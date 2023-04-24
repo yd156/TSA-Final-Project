@@ -85,10 +85,7 @@ dailyprice.ts <- msts(dailyprice$daily_mean_price,
 # 
 # str(dailyload)
 
-ggplot(dailyprice, aes(x=date, y=daily_mean_price)) +
-  geom_line() +
-  ggtitle("Average Daily Electricity Price in NYC from 2010 to 2022");
-            
+autoplot(dailyprice.ts)            
 # ggplot(dailyload, aes(x=date,y=daily_mean_load)) +
 #   geom_line() +
 #   ggtitle("Average Daily Electricity Load in NYC from 2018 to 2022")+
