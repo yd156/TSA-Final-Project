@@ -2,8 +2,10 @@
 title: "TSA Final Forecasting"
 author: "Yinan Ding, Jinxi Liu, Zhengqi Jiao"
 date: "2023-04-11"
-output: pdf_document
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+editor_options:
   chunk_output_type: inline
 ---
 
@@ -184,7 +186,7 @@ autoplot(dailyprice.ts)
 dailyprice.train.ts <- subset(dailyprice.ts,
                                    end = length(dailyprice.ts)-365) #Jan 1st 2010 to Dec 30st 2021
 dailyprice.test.ts <- subset(dailyprice.ts,
-                                   start = length(dailyprice.ts)-365) # Jan 1st 2022 to Dec 30st 2022
+                                   start = length(dailyprice.ts)-365) # Jan 1st 2021 to Dec 30st 2022
 autoplot (dailyprice.train.ts)
 autoplot (dailyprice.test.ts)
 
