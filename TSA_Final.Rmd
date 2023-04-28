@@ -365,10 +365,17 @@ autoplot(dailyprice.test.ts) +
 ## Predicting the future
 
 ```{r}
-ETS_fit_2023 <-  stlf(dailyprice.ts, h=365)
+NN <- nnetar(dailyprice.ts,p=1,P=0,xreg=fourier(dailyprice.ts, K=c(2,12)))
+#NN_load <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(dailyload.train.ts,K=c(2,12)))
+#NN_ng <- nnetar(dailyprice.train.ts,p=1,P=0,xreg=fourier(NGprice.fixed.train.ts,K=c(2,12)))
 
-autoplot(dailyprice.test.ts, color = "dark grey") +
-  autolayer(ETS_fit_2023$mean, series="STL + ETS",PI=FALSE, color = "blue") +
+
+#Forecast with NNet
+NN_fc<- forecast(NN,h=365,xreg=fourier(dailyprice.train.ts,K=c(2,12),h=365))
+
+
+autoplot(dailyprice.ts, color = "dark grey") +
+  autolayer(NN_fc$mean, series="NN+Fourier",PI=FALSE, color = "blue") +
   ylab("Electricity Price")
 ```
 
