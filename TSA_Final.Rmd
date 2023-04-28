@@ -209,7 +209,7 @@ autoplot (dailyprice.test.ts)
 
 ## Decomposing time series objects
 ```{r}
-dailyprice.train.ts %>% mstl() %>% autoplot()
+dailyprice.ts %>% mstl() %>% autoplot()
 ```
 
 ## Exponential Smoothing State Space Model
